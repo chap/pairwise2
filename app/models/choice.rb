@@ -105,36 +105,17 @@ class Choice < ActiveRecord::Base
   
   protected
 
-  
-  def generate_prompts
-    #once a choice is added, we need to generate the new prompts (possible combinations of choices)
-    #do this in a new process (via delayed jobs)? Maybe just for uploaded ideas
+  def generated_prompts
     previous_choices = (self.question.choices - [self])
-    return if previous_choices.empty?
-    inserts = []
 
-    timestring = Time.now.to_s(:db) #isn't rails awesome?
-
-    #add prompts with this choice on the left
-    previous_choices.each do |r|
-	inserts.push("(NULL, #{self.question_id}, NULL, #{self.id}, '#{timestring}', '#{timestring}', NULL, 0, #{r.id}, NULL, NULL)")
+    if previous_choices.any?
+      sql = []
+      previous_choices.each do |choice|
+        sql << {:question_id => self.question_id, :left_choice_id => choice.id, :votes_count => 0, :right_choice_id => self.id}
+        sql << {:question_id => self.question_id, :left_choice_id => self.id, :votes_count => 0, :right_choice_id => choice.id}
+      end
+      Prompt.create([sql])
+      Question.update_counters(self.question_id, :prompts_count => 2*previous_choices.size)
     end
-    #add prompts with this choice on the right 
-    previous_choices.each do |l|
-	inserts.push("(NULL, #{self.question_id}, NULL, #{l.id}, '#{timestring}', '#{timestring}', NULL, 0, #{self.id}, NULL, NULL)")
-    end
-    sql = "INSERT INTO `prompts` (`algorithm_id`, `question_id`, `voter_id`, `left_choice_id`, `created_at`, `updated_at`, `tracking`, `votes_count`, `right_choice_id`, `active`, `randomkey`) VALUES #{inserts.join(', ')}"
-
-    Question.update_counters(self.question_id, :prompts_count => 2*previous_choices.size)
-
-
-    ActiveRecord::Base.connection.execute(sql)
-
-#VALUES (NULL, 108, NULL, 1892, '2010-03-16 11:12:37', '2010-03-16 11:12:37', NULL, 0, 1893, NULL, NULL)
-#    INSERT INTO `prompts` (`algorithm_id`, `question_id`, `voter_id`, `left_choice_id`, `created_at`, `updated_at`, `tracking`, `votes_count`, `right_choice_id`, `active`, `randomkey`) VALUES(NULL, 108, NULL, 1892, '2010-03-16 11:12:37', '2010-03-16 11:12:37', NULL, 0, 1893, NULL, NULL)
-    #previous_choices.each { |c|
-    #  question.prompts.create!(:left_choice => c, :right_choice => self)
-    #  question.prompts.create!(:left_choice => self, :right_choice => c)
-    #}
   end
 end
