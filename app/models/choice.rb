@@ -105,7 +105,7 @@ class Choice < ActiveRecord::Base
   
   protected
 
-  def generated_prompts
+  def generate_prompts
     previous_choices = (self.question.choices - [self])
 
     if previous_choices.any?
